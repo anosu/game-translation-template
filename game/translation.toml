@@ -1,0 +1,24 @@
+schema_version = 1
+
+[project]
+id = "my-game"
+name = "My Game"
+source_language = "en"
+adapter = "json"
+backend = "compatible"
+cache = "../.cache/translation"
+
+[adapter]
+input = "sources/resources.json"
+
+[backends.compatible]
+base_url = "https://api.openai.com/v1"
+api_key_env = "MODEL_API_KEY"
+# Set model here, or use --model / TRANSLATION_MODEL before translating.
+
+[targets.zh-Hans]
+name = "简体中文"
+translations = "../translations/zh-Hans"
+style = "styles/zh-Hans.md"
+# Optional canonical dictionaries, relative to this target's translations directory:
+# term_sources = [{ file = "names.json" }]

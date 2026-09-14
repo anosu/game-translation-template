@@ -1,0 +1,208 @@
+name: Update Translations
+
+on:
+  workflow_dispatch:
+    inputs:
+      config:
+        description: Project configuration
+        type: string
+        default: game/translation.toml
+      targets:
+        description: Comma-separated target languages
+        type: string
+        default: ''
+      backend:
+        description: Backend override
+        type: string
+        default: ''
+      model:
+        description: Model override
+        type: string
+        default: ''
+      plan_only:
+        description: Sync and plan without model calls or publication (acquisition may access the network)
+        type: boolean
+        default: true
+      limit:
+        description: Maximum resources per language (0 means all; does not limit acquisition)
+        type: string
+        default: '0'
+  workflow_call:
+    inputs:
+      config:
+        type: string
+        default: game/translation.toml
+      targets:
+        type: string
+        default: ''
+      backend:
+        type: string
+        default: ''
+      model:
+        type: string
+        default: ''
+      plan_only:
+        type: boolean
+        default: true
+      limit:
+        type: string
+        default: '0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: translation-${{ inputs.config || 'game/translation.toml' }}
+  cancel-in-progress: false
+
+env:
+  HUSKY: '0'
+  PROJECT_CONFIG: ${{ inputs.config || 'game/translation.toml' }}
+  TARGET_LANGUAGES: ${{ inputs.targets || '' }}
+  TRANSLATION_BACKEND: ${{ inputs.backend || vars.TRANSLATION_BACKEND || '' }}
+  TRANSLATION_MODEL: ${{ inputs.model || vars.TRANSLATION_MODEL || '' }}
+  TASK_LIMIT: ${{ inputs.limit || vars.TRANSLATION_LIMIT || '0' }}
+
+jobs:
+  sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      matrix: ${{ steps.meta.outputs.matrix }}
+      project: ${{ steps.meta.outputs.project }}
+      sources: ${{ steps.meta.outputs.sources }}
+      source_bundle: ${{ steps.meta.outputs.source_bundle }}
+      bundle_dir: ${{ steps.meta.outputs.bundle_dir }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.1.0
+      - run: uv sync --frozen --python 3.14
+      - id: meta
+        run: |
+          args=()
+          if [ -n "$TARGET_LANGUAGES" ]; then args+=(--target "$TARGET_LANGUAGES"); fi
+          uv run --no-sync python -m workflow.ci matrix --config "$PROJECT_CONFIG" "${args[@]}" --github-output "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ${{ steps.meta.outputs.sources }}
+            ${{ steps.meta.outputs.adapter_cache }}
+          key: sources-v8-${{ steps.meta.outputs.project }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: sources-v8-${{ steps.meta.outputs.project }}-
+      - name: Collect once and export immutable resources
+        run: |
+          args=()
+          if [ -n "$TARGET_LANGUAGES" ]; then args+=(--target "$TARGET_LANGUAGES"); fi
+          uv run --no-sync python -m workflow sync --config "$PROJECT_CONFIG" "${args[@]}" --export
+      - uses: actions/upload-artifact@v7
+        with:
+          name: original-sources
+          path: ${{ steps.meta.outputs.source_bundle }}
+          retention-days: 1
+
+  translate:
+    needs: sources
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.sources.outputs.matrix) }}
+    env:
+      TARGET_LANGUAGE: ${{ matrix.language }}
+      WORK_DIR: ${{ matrix.work }}
+      TRANSLATION_BACKEND: ${{ matrix.backend }}
+      TRANSLATION_MODEL: ${{ matrix.model }}
+      SOURCE_BUNDLE: ${{ needs.sources.outputs.source_bundle }}
+      SOURCE_DIR: ${{ needs.sources.outputs.sources }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: astral-sh/setup-uv@v10.1.0
+      - run: uv sync --frozen --python 3.14
+      - run: npm ci
+      - uses: actions/download-artifact@v8
+        with:
+          name: original-sources
+          path: ${{ needs.sources.outputs.bundle_dir }}
+      - run: uv run --no-sync python -m zipfile -e "$SOURCE_BUNDLE" "$SOURCE_DIR"
+      - uses: actions/cache/restore@v6
+        id: cache
+        with:
+          path: ${{ matrix.work }}
+          key: answers-v9-${{ needs.sources.outputs.project }}-${{ matrix.language }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: answers-v9-${{ needs.sources.outputs.project }}-${{ matrix.language }}-
+      - name: Plan from local resources
+        run: |
+          args=()
+          if [ "$TASK_LIMIT" != '0' ]; then args+=(--limit "$TASK_LIMIT"); fi
+          uv run --no-sync python -m workflow plan --config "$PROJECT_CONFIG" --target "$TARGET_LANGUAGE" "${args[@]}"
+      - name: Enable sandboxed processes
+        if: ${{ !inputs.plan_only }}
+        run: |
+          if [ -f /proc/sys/kernel/unprivileged_userns_clone ]; then sudo sysctl -w kernel.unprivileged_userns_clone=1; fi
+          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0; fi
+      - name: Translate one resource packet per agent session
+        if: ${{ !inputs.plan_only }}
+        env:
+          API_KEY_ENV: ${{ matrix.api_key_env }}
+          BACKEND_API_KEY: ${{ secrets[matrix.api_key_env] }}
+        run: |
+          uv run --no-sync python -c 'import os,sys; os.environ[os.environ["API_KEY_ENV"]]=os.environ.pop("BACKEND_API_KEY"); from workflow.cli import main; main()' translate --config "$PROJECT_CONFIG" --target "$TARGET_LANGUAGE"
+          git diff --exit-code
+          test -z "$(git ls-files --others --exclude-standard)"
+      - name: Summarize
+        if: always()
+        run: uv run --no-sync python -m workflow summary --config "$PROJECT_CONFIG" --target "$TARGET_LANGUAGE" --output "$GITHUB_STEP_SUMMARY"
+      - uses: actions/cache/save@v6
+        if: always()
+        with:
+          path: ${{ matrix.work }}
+          key: answers-v9-${{ needs.sources.outputs.project }}-${{ matrix.language }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: translation-${{ matrix.language }}
+          path: |
+            ${{ matrix.work }}/plan.json
+            ${{ matrix.work }}/results.json
+            ${{ matrix.work }}/prepare-report.json
+            ${{ matrix.work }}/agent-report.md
+          retention-days: 1
+
+  publish:
+    needs: [sources, translate]
+    if: ${{ !inputs.plan_only }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.1.0
+      - run: uv sync --frozen --python 3.14
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: translation-*
+          path: .cache/collected
+      - name: Publish all successful languages
+        run: |
+          args=()
+          if [ -n "$TARGET_LANGUAGES" ]; then args+=(--target "$TARGET_LANGUAGES"); fi
+          uv run --no-sync python -m workflow.ci restore --config "$PROJECT_CONFIG" "${args[@]}" --artifacts .cache/collected
+          uv run --no-sync python -m workflow publish --config "$PROJECT_CONFIG" "${args[@]}"
+          uv run --no-sync python -m workflow check --config "$PROJECT_CONFIG" "${args[@]}"
+          uv run --no-sync python -m workflow.ci stage --config "$PROJECT_CONFIG" "${args[@]}"
+      - name: Commit one publication
+        run: |
+          git config user.name 'GitHub Actions'
+          git config user.email 'actions@github.com'
+          if ! git diff --cached --quiet; then
+            git commit -m 'Auto-update translations'
+            git push
+          fi

@@ -1,0 +1,39 @@
+[
+    {
+        "id": "names",
+        "output": "names.json",
+        "kind": "text",
+        "blocks": [{"texts": ["村人", "主人公"]}]
+    },
+    {
+        "id": "novel/1",
+        "output": "novels/1.json",
+        "kind": "dialogue",
+        "context": {"title": "握手は心の中だけで"},
+        "lines": [
+            ["村人", "ははは"],
+            [null, "ははは2"],
+            ["主人公", "ははは3"]
+        ]
+    },
+    {
+        "id": "mActionPatterns/name",
+        "output": "master.json",
+        "path": ["mActionPatterns", "name"],
+        "kind": "text",
+        "blocks": [{"texts": ["AI：攻撃的", "AI：防御的"]}]
+    },
+    {
+        "id": "mActiveSkillSideEffectFilters/ml_name",
+        "output": "master.json",
+        "path": ["mActiveSkillSideEffectFilters", "ml_name[]"],
+        "kind": "text",
+        "blocks": [{"texts": ["即死", "再行動"]}]
+    },
+    {
+        "id": "titles",
+        "output": "titles.json",
+        "kind": "text",
+        "blocks": [{"texts": ["握手は心の中だけで"]}]
+    }
+]

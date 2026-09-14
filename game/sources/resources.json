@@ -1,0 +1,19 @@
+[
+    {
+        "id": "opening",
+        "output": "novels/opening.json",
+        "kind": "dialogue",
+        "lines": [
+            [null, "Where am I?"],
+            ["Guide", "Welcome, {player}!"],
+            ["Guide", "Welcome, {player}!"]
+        ],
+        "rules": {"protected_patterns": ["\\{[^{}]+\\}"]}
+    },
+    {
+        "id": "menu",
+        "output": "ui.json",
+        "kind": "text",
+        "blocks": [{"texts": ["Start game"]}]
+    }
+]
