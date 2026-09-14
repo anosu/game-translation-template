@@ -154,9 +154,16 @@ jobs:
           API_KEY_ENV: ${{ matrix.api_key_env }}
           BACKEND_API_KEY: ${{ secrets[matrix.api_key_env] }}
         run: |
-          uv run --no-sync python -c 'import os,sys; os.environ[os.environ["API_KEY_ENV"]]=os.environ.pop("BACKEND_API_KEY"); from workflow.cli import main; main()' translate --config "$PROJECT_CONFIG" --target "$TARGET_LANGUAGE"
+          if ! uv run --no-sync python -c 'import os,sys; os.environ[os.environ["API_KEY_ENV"]]=os.environ.pop("BACKEND_API_KEY"); from workflow.cli import main; main()' translate --config "$PROJECT_CONFIG" --target "$TARGET_LANGUAGE"; then
+            if [ -f "$WORK_DIR/agent.log" ]; then tail -n 100 "$WORK_DIR/agent.log"; fi
+            exit 1
+          fi
           git diff --exit-code
-          test -z "$(git ls-files --others --exclude-standard)"
+          untracked=$(git ls-files --others --exclude-standard)
+          if [ -n "$untracked" ]; then
+            printf 'Unexpected untracked files after translation:\n%s\n' "$untracked"
+            exit 1
+          fi
       - name: Summarize
         if: always()
         run: uv run --no-sync python -m workflow summary --config "$PROJECT_CONFIG" --target "$TARGET_LANGUAGE" --output "$GITHUB_STEP_SUMMARY"

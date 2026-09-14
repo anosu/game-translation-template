@@ -9,7 +9,11 @@ npm run workflow -- sync --config docs/examples/dictionaries/translation.toml
 npm run workflow -- plan --config docs/examples/dictionaries/translation.toml
 ```
 
-应得到 5 份资源、10 条待办。无需模型密钥。实际翻译前设置模型和密钥，再运行 translate、publish、check，并传同一个 --config。
+首次运行、没有已有译文时，应得到 5 份资源、27 条待办。无需模型密钥。实际翻译前设置模型和密钥，再运行 translate、publish、check，并传同一个 --config。
+
+资料为测试而编写：3 个名称、12 行连贯对话（11 条不同原文）、两个表各 5 条文本、3 个标题。对话包含无说话人的旁白、重复的“ありがとうございます。”、`{player_name}` 占位符和 `<br>` 换行标签，用于检查上下文、去重和格式保留。
+
+远程实测时，设置本配置的服务地址和模型，并将密钥放入 GitHub Actions Secret `MODEL_API_KEY`。默认 `generated/` 被 Git 忽略，适合本地试跑；CI 自动提交时需将 translations 改为未忽略的交付目录，例如 `../../../translations/ci-smoke/zh-Hans`。在 Update Translations 中选择本配置、目标语言及模型，关闭 plan_only，即可执行实际翻译和发布。
 
 | 资源 | 输出 |
 | --- | --- |
@@ -19,7 +23,7 @@ npm run workflow -- plan --config docs/examples/dictionaries/translation.toml
 | mActiveSkillSideEffectFilters/ml_name | 同一 master.json 内 mActiveSkillSideEffectFilters.ml_name[] 下的原文 → 译文 |
 | titles | titles.json 根部的标题原文 → 译文 |
 
-生成文件位于本示例的 generated/zh-Hans/。ml_name[] 是字面对象键，不是数组索引。标题确实存在才放入上下文；context 内的标题不自动翻译，因此需要交付时另有 titles 资源。
+生成位置由 translation.toml 的 targets.zh-Hans.translations 指定。ml_name[] 是字面对象键，不是数组索引。标题确实存在才放入上下文；context 内的标题不自动翻译，因此需要交付时另有 titles 资源。
 
 term_sources 配置声明 names.json 为标准名称来源，所以 names 资源会优先处理，无需再在每条名称上标注。适配器应汇总本次所选剧情中出现的所有非空名称并去重；框架按当前语言的 names.json 补齐新名称。历史名称不必重抓，也不复制到 glossary。
 
