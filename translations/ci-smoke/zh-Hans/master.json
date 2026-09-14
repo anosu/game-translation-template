@@ -1,0 +1,14 @@
+{
+    "mActionPatterns": {
+        "name": {
+            "AI：攻撃的": "AI：攻击型",
+            "AI：防御的": "AI：防御型"
+        }
+    },
+    "mActiveSkillSideEffectFilters": {
+        "ml_name[]": {
+            "即死": "即死",
+            "再行動": "再行动"
+        }
+    }
+}
