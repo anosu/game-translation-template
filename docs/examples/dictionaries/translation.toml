@@ -1,7 +1,7 @@
 schema_version = 1
 
 [project]
-id = "vn-dictionaries"
+id = "vn-dictionaries-clean"
 source_language = "ja"
 adapter = "json"
 backend = "compatible"
@@ -15,5 +15,5 @@ api_key_env = "MODEL_API_KEY"
 # Configure model here or pass --model before translating.
 
 [targets.zh-Hans]
-translations = "../../../translations/ci-smoke/zh-Hans"
+translations = "../../../translations/ci-smoke-clean/zh-Hans"
 term_sources = [{ file = "names.json" }]
