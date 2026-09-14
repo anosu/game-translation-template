@@ -10,10 +10,10 @@ backend = "compatible"
 input = "resources.json"
 
 [backends.compatible]
-base_url = "https://api.openai.com/v1"
+base_url = "https://api.deepseek.com"
 api_key_env = "MODEL_API_KEY"
 # Configure model here or pass --model before translating.
 
 [targets.zh-Hans]
-translations = "generated/zh-Hans"
+translations = "../../../translations/ci-smoke/zh-Hans"
 term_sources = [{ file = "names.json" }]
