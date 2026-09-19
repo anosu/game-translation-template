@@ -31,7 +31,7 @@ update 是同步、规划、翻译、发布和检查的组合命令，会访问�
 
 - --config PATH 选择其他项目；--target 可重复或用逗号分隔语言。
 - sync/update 的 --source-id 传给适配器；JSON 适配器按资源 ID 选择，未知 ID 报错。
-- plan/update 的 --limit 限制资源数，不限制同步成本。共享字典的资源一起选择，额度不足时可提高上限。
+- plan/update 的 --limit 只计算仍有缺失译文的资源，不限制同步成本。已完成资源作为上下文保留，不占额度；共享输出文件的资源仍完整纳入。额度无法容纳任何待翻译组时会报错，并提示最低上限。规划报告和 summary 会分别显示本次选择与因上限暂缓的待办。
 - --backend > TRANSLATION_BACKEND > 目标 backend > 项目 backend。
 - --model > TRANSLATION_MODEL > 后端 model。
 - translate/update 的 --timeout 是每个工作包的模型进程时限，默认 3600 秒。

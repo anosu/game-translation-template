@@ -83,15 +83,15 @@ def run_summary(project: Project, targets: list[Target]) -> str:
     lines = [
         f"# Translation update: {project.name}",
         "",
-        "| Target | Resources selected / available | Dictionary keys | Reuse candidates | Completed | Remaining |",
-        "| --- | --- | --- | --- | --- | --- |",
+        "| Target | Resources selected / available | Dictionary keys selected / available | Reuse candidates | Completed | Remaining in plan | Deferred by limit |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     for target in targets:
         report_path = target.work / "prepare-report.json"
         report = read_json(report_path) if report_path.exists() else {}
         progress = status(target)
         lines.append(
-            f"| {target.code} | {report.get('resources', 0)} / {report.get('available_resources', 0)} | {report.get('tasks', 0)} | {report.get('reuse_candidates', 0)} | {progress.get('completed', 0)} | {progress.get('remaining', '?')} |"
+            f"| {target.code} | {report.get('resources', 0)} / {report.get('available_resources', 0)} | {report.get('tasks', 0)} / {report.get('available_tasks', report.get('tasks', 0))} | {report.get('reuse_candidates', 0)} | {progress.get('completed', 0)} | {progress.get('remaining', '?')} | {report.get('deferred_tasks', 0)} |"
         )
         if report.get("existing_variants"):
             lines.extend(

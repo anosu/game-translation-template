@@ -77,16 +77,40 @@ def prepare_tasks(project: Project, target: Target, limit: int | None = None) ->
         ]
     )
     by_output = {}
+    documents = {}
+    pending_resources = set()
+    pending_keys = set()
     for resource in resources:
         by_output.setdefault(resource.output, []).append(resource)
-    # A limit counts resources; shared dictionaries remain a single publication unit.
+        output = (target.translations / resource.output).resolve()
+        if not output.is_relative_to(target.translations.resolve()):
+            raise ValueError("Publication path escapes target")
+        if resource.output not in documents:
+            documents[resource.output] = read_document(output)
+        dictionary = dictionary_at(documents[resource.output], resource.path)
+        for occurrence in resource.occurrences():
+            source = occurrence["source"]
+            before = dictionary.get(source)
+            if not before or not before.strip():
+                pending_resources.add(resource.id)
+                pending_keys.add((resource.output, tuple(resource.path), source))
+    # Completed resources remain readable context but do not consume the limit.
+    # Every selected output still includes all its resources, including shared keys.
     selected = []
+    selected_pending = 0
+    required_sizes = []
     for group in by_output.values():
-        if limit is None or len(selected) + len(group) <= limit:
+        cost = sum(resource.id in pending_resources for resource in group)
+        if cost:
+            required_sizes.append(cost)
+        if limit is None or selected_pending + cost <= limit:
             selected.extend(group)
-    if resources and not selected:
-        raise ValueError("Resource limit cannot fit a complete output dictionary")
-    documents = {}
+            selected_pending += cost
+    if pending_resources and not selected_pending:
+        raise ValueError(
+            "Resource limit cannot fit a complete output dictionary; "
+            f"use at least {min(required_sizes)} pending resources or omit --limit"
+        )
     claims = {}
     term_dictionaries = {
         (resource.output, tuple(resource.path)): TermSource(
@@ -100,11 +124,6 @@ def prepare_tasks(project: Project, target: Target, limit: int | None = None) ->
         **term_dictionaries,
     }
     for resource in selected:
-        output = (target.translations / resource.output).resolve()
-        if not output.is_relative_to(target.translations.resolve()):
-            raise ValueError("Publication path escapes target")
-        if resource.output not in documents:
-            documents[resource.output] = read_document(output)
         dictionary = dictionary_at(documents[resource.output], resource.path)
         reference = snapshot.resources[resource.id]
         for occurrence in resource.occurrences():
@@ -196,13 +215,18 @@ def prepare_tasks(project: Project, target: Target, limit: int | None = None) ->
             "tasks": len(tasks),
             "resources": len(selected),
             "available_resources": len(resources),
-            "available_tasks": len(tasks),
+            "pending_resources": selected_pending,
+            "available_pending_resources": len(pending_resources),
+            "available_tasks": len(pending_keys),
+            "deferred_tasks": len(pending_keys) - len(tasks),
             "reuse_candidates": sum(t["reuse"] is not None for t in tasks),
             "source_scope": "selected resources only",
             "blocked_entries": 0,
         },
     )
     print(
-        f"{target.code}: {len(selected)}/{len(resources)} resources, {len(tasks)} missing dictionary keys"
+        f"{target.code}: {len(selected)}/{len(resources)} resources "
+        f"({selected_pending}/{len(pending_resources)} pending), "
+        f"{len(tasks)}/{len(pending_keys)} missing dictionary keys selected"
     )
     return plan

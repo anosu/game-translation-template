@@ -11,6 +11,7 @@ import tomli_w
 from workflow.cli import check_translations
 from workflow.config import TermSource, load_project
 from workflow.merge import merge_results
+from workflow.operations import run_summary
 from workflow.prepare import prepare_tasks
 from workflow.resources import Resource
 from workflow.scaffold import create_project
@@ -321,6 +322,73 @@ class DictionaryPathTests(unittest.TestCase):
     def test_shared_file_is_not_split_by_resource_limit(self):
         with self.assertRaisesRegex(ValueError, "complete output"):
             self.plan(self.resources[2:4], limit=1)
+
+    def test_limit_counts_pending_resources_and_replanning_advances(self):
+        write_json(self.target.translations / "names.json", {"村人": "村民"})
+        write_json(
+            self.target.translations / "master.json", {"old": {"name": {"旧": "旧译"}}}
+        )
+        resources = [
+            text_resource("names", "names.json", [], ["村人"]),
+            text_resource("old", "master.json", ["old", "name"], ["旧"]),
+            text_resource("new", "master.json", ["new", "name"], ["新"]),
+            text_resource("later", "titles.json", [], ["次回"]),
+        ]
+        plan = self.plan(resources, limit=1)
+        self.assertEqual([task.source for task in plan.tasks], ["新"])
+        self.assertEqual(set(plan.resources), {"names", "old", "new"})
+        session = setup_session(self.target.work)
+        self.assertEqual(session.projected_names({})["村人"], "村民")
+        report = read_json(self.target.work / "prepare-report.json")
+        self.assertEqual(
+            (report["tasks"], report["available_tasks"], report["deferred_tasks"]),
+            (1, 2, 1),
+        )
+        self.assertEqual(
+            (report["pending_resources"], report["available_pending_resources"]), (1, 2)
+        )
+        summary = run_summary(self.project, [self.target])
+        self.assertIn("Deferred by limit", summary)
+        self.assertIn("1 / 2", summary)
+        self.finish()
+        merge_results(self.project, self.target)
+        self.assertEqual(
+            read_json(self.target.translations / "master.json")["old"],
+            {"name": {"旧": "旧译"}},
+        )
+        next_plan = prepare_tasks(self.project, self.target, limit=1)
+        self.assertEqual([task.source for task in next_plan.tasks], ["次回"])
+
+    def test_limit_reports_insufficient_capacity_after_completed_resources(self):
+        write_json(
+            self.target.translations / "names.json",
+            {"村人": "村民", "主人公": "主人公"},
+        )
+        self.plan([self.resources[0]])
+        previous = (self.target.work / "plan.json").read_bytes()
+        with self.assertRaisesRegex(ValueError, "use at least 2"):
+            self.plan([self.resources[0], *self.resources[2:4]], limit=1)
+        self.assertEqual((self.target.work / "plan.json").read_bytes(), previous)
+
+    def test_limit_does_not_reject_a_fully_translated_shared_file(self):
+        write_json(
+            self.target.translations / "master.json",
+            {
+                "mActionPatterns": {
+                    "name": {"AI：攻撃的": "AI：攻击型", "AI：防御的": "AI：防御型"}
+                },
+                "mActiveSkillSideEffectFilters": {
+                    "ml_name[]": {"即死": "即死", "再行動": "再行动"}
+                },
+            },
+        )
+        plan = self.plan(self.resources[2:4], limit=1)
+        self.assertEqual(plan.tasks, [])
+        self.assertEqual(set(plan.resources), {"actions", "filters"})
+        report = read_json(self.target.work / "prepare-report.json")
+        self.assertEqual(
+            (report["available_tasks"], report["pending_resources"]), (0, 0)
+        )
 
     def test_repeated_nested_source_shares_one_task_and_all_occurrences(self):
         first = text_resource("one", "master.json", ["table", "name"], ["同文"])

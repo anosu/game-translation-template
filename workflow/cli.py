@@ -96,7 +96,7 @@ def argument_parser() -> argparse.ArgumentParser:
             sub.add_argument(
                 "--limit",
                 type=positive,
-                help="Maximum resources; shared output files stay together. Does not limit acquisition.",
+                help="Maximum pending resources; completed context is free and shared output files stay together. Does not limit acquisition.",
             )
         if command in {"translate", "update", "config"}:
             sub.add_argument("--backend", type=nonempty)
