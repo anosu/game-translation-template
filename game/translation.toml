@@ -16,6 +16,9 @@ base_url = "https://api.openai.com/v1"
 api_key_env = "MODEL_API_KEY"
 # Set model here, or use --model / TRANSLATION_MODEL before translating.
 
+[backends.compatible.codex]
+effort = "medium"
+
 [targets.zh-Hans]
 name = "简体中文"
 translations = "../translations/zh-Hans"
