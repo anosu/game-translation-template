@@ -10,7 +10,8 @@ translator; the Python workflow is only deterministic project plumbing.
 - `workflow sync` stores an immutable source snapshot; `workflow plan` prepares
   exact output-file and dictionary-path tasks; `workflow publish` writes the
   validated source-to-translation dictionaries.
-- The Agent owns its conversation, context, tool use, and continuity. Do not
+- The Agent owns its context and tools within each run. Accepted answers persist
+  across runs, but rerunning translation starts a new conversation. Do not
   implement an Agent, API request loop, token budget, or session scheduler.
 
 ## Translation work

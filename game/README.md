@@ -5,7 +5,7 @@
 3. styles/<语言>.md：语气、人物口吻和界面要求。
 4. glossary/<语言>.json：显式术语译法，规则见[说明](../docs/glossary.md)。
 
-从仓库根目录运行 sync 获取资源，再运行 plan 离线查看待办。配置模型密钥后执行 translate、publish 和 check，或用 update 执行完整更新。
+从仓库根目录运行 sync 获取资源，再运行 plan 离线查看待译项。设置模型和密钥环境变量后执行 translate、publish 和 check，或用 update 执行完整更新。
 
 默认输出为 ../translations/zh-Hans。project.cache 统一设置缓存根目录，框架按项目 ID 和目标语言自动隔离；修改 ID 无需再改缓存路径。新增语言只需添加目标配置，按需指定输出位置。
 
